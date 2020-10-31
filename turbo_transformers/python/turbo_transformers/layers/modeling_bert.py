@@ -533,8 +533,8 @@ class BertModel:
             import onnxruntime.backend
             inputs = {
                 'input_ids':
-                torch.randint(32, [2, 32], dtype=torch.long).to(
-                    device),  # list of numerical ids for the tokenised text
+                torch.randint(low=0, high=10, size=(2, 32), dtype=torch.long).
+                to(device),  # list of numerical ids for the tokenised text
                 'attention_mask':
                 torch.ones([2, 32],
                            dtype=torch.long).to(device),  # dummy list of ones
@@ -554,6 +554,7 @@ class BertModel:
                         'input_ids', 'attention_mask', 'token_type_ids'
                     ],
                     output_names=['output'],
+                    opset_version=11,
                     dynamic_axes={
                         'input_ids': [0, 1],
                         'attention_mask': [0, 1],

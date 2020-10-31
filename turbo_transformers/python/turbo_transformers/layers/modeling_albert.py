@@ -307,7 +307,59 @@ class AlbertModel:
     """
     def __init__(self, embeddings: TorchAlbertEmbeddings,
                  encoder: AlbertTransformer, pooler: nn.Linear,
-                 config: AlbertConfig):
+                 config: AlbertConfig, backend):
+        self.backend = backend
+        if backend == "onnxrt":
+            self.torchmodel = embeddings
+            import onnx
+            import onnxruntime
+            import onnxruntime.backend
+
+            use_cuda = next(self.torchmodel.parameters()).is_cuda
+            device = torch.device('cuda:0') if use_cuda else \
+                torch.device('cpu:0')
+
+            inputs = {
+                'input_ids':
+                torch.randint(low=0, high=10, size=(2, 32), dtype=torch.long).
+                to(device),  # list of numerical ids for the tokenised text
+                'attention_mask':
+                torch.ones(2, 32,
+                           dtype=torch.long).to(device),  # dummy list of ones
+                'token_type_ids':
+                torch.ones(2, 32,
+                           dtype=torch.long).to(device),  # dummy list of ones
+            }
+            onnx_model_path = "/tmp/temp_albert_onnx.model"
+            with torch.no_grad():
+                with open(onnx_model_path, 'wb') as outf:
+                    torch.onnx.export(
+                        model=self.torchmodel,
+                        args=(
+                            inputs['input_ids'],
+                            # inputs['attention_mask'],
+                            # inputs['token_type_ids']
+                        ),  # model input (or tuple for multiple inputs)
+                        f=outf,
+                        input_names=[
+                            'input_ids',
+                            # 'attention_mask', 'token_type_ids'
+                        ],
+                        output_names=['output'],
+                        opset_version=11,
+                        dynamic_axes={
+                            'input_ids': [0, 1],
+                            # 'attention_mask': [0, 1],
+                            # 'token_type_ids': [0, 1]
+                        })
+                onnx_model = onnx.load_model(f=onnx_model_path)
+                self.onnx_model = onnxruntime.backend.prepare(
+                    model=onnx_model,
+                    device='GPU' if use_cuda else "CPU",
+                    graph_optimization_level=onnxruntime.
+                    GraphOptimizationLevel.ORT_ENABLE_ALL)
+            return
+
         self.config = config
         self.embeddings = embeddings
         self.encoder = encoder
@@ -325,6 +377,22 @@ class AlbertModel:
                  output_hidden_states=None,
                  output: Optional[AnyTensor] = None,
                  return_type: Optional[ReturnType] = None):
+        if self.backend == "onnxrt":
+            return None
+            if attention_mask is None:
+                attention_mask = np.ones(input_ids.size(), dtype=np.int64)
+            else:
+                attention_masks = attention_mask.cpu().numpy()
+            if token_type_ids is None:
+                token_type_ids = np.zeros(input_ids.size(), dtype=np.int64)
+            else:
+                token_type_ids = token_type_ids.cpu().numpy()
+            # data = [input_ids.cpu().numpy(), attention_masks, token_type_ids]
+            data = [input_ids.cpu().numpy()]
+            outputs = self.onnx_model.run(inputs=data)
+            for idx, item in enumerate(outputs):
+                outputs[idx] = torch.tensor(item, device=input_ids.device)
+            return outputs
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (output_hidden_states
                                 if output_hidden_states is not None else
@@ -379,10 +447,17 @@ class AlbertModel:
         return outputs
 
     @staticmethod
-    def from_torch(torch_model: TorchAlbertModel):
-        return AlbertModel(
-            # AlbertEmbeddings.from_torch(torch_model.embeddings),
-            torch_model.embeddings,
-            AlbertTransformer.from_torch(torch_model.encoder),
-            torch_model.pooler,
-            torch_model.config)
+    def from_torch(torch_model: TorchAlbertModel,
+                   backend: Optional[str] = "turbo"):
+        if backend == "turbo":
+            return AlbertModel(
+                # AlbertEmbeddings.from_torch(torch_model.embeddings),
+                torch_model.embeddings,
+                AlbertTransformer.from_torch(torch_model.encoder),
+                torch_model.pooler,
+                torch_model.config,
+                backend)
+        elif backend == "onnxrt":
+            return AlbertModel(torch_model, None, None, None, backend)
+        else:
+            raise "not implemented"

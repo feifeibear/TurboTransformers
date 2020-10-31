@@ -16,8 +16,9 @@ import unittest
 import sys
 import torch
 import turbo_transformers
-from transformers.modeling_albert import AlbertConfig, AlbertModel
-import numpy
+from transformers.modeling_albert import AlbertConfig
+from transformers.modeling_albert import AlbertModel as TorchAlbertModel
+from albert_copy import AlbertModel
 import os
 
 sys.path.append(os.path.dirname(__file__))
@@ -47,7 +48,7 @@ def create_test(batch_size, seq_length):
                                               device=self.test_device)
 
             self.turbo_model = turbo_transformers.AlbertModel.from_torch(
-                self.torch_model)
+                self.torch_model, "onnxrt")
 
         def check_torch_and_turbo(self, use_cuda):
             self.init_data(use_cuda=use_cuda)

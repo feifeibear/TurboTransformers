@@ -15,6 +15,7 @@ __all__ = ['onnxruntime_benchmark_creator']
 
 enable_latency_plot = 1
 checkonnxrest = False
+from albert_model_copy import AlbertModel as ModifiedAlbertModel
 
 
 def generate_onnx_model(model_name: str,
@@ -41,7 +42,7 @@ def generate_onnx_model(model_name: str,
             model = transformers.BertModel(cfg)
     elif model_name == "albert":
         cfg = transformers.AlbertConfig()
-        model = transformers.AlbertModel(cfg)
+        model = ModifiedAlbertModel(cfg)
     elif model_name == "roberta":
         cfg = transformers.RobertaConfig()
         model = transformers.RobertaModel(cfg)
@@ -65,6 +66,7 @@ def generate_onnx_model(model_name: str,
             torch.onnx.export(model=model,
                               args=(input_ids, ),
                               f=outf,
+                              opset_version=11,
                               input_names=['input'],
                               output_names=['output'],
                               dynamic_axes={

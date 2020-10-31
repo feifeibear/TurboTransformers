@@ -12,12 +12,13 @@
 # See the AUTHORS file for names of contributors.
 """
 Implementation of "Attention is All You Need"
+Copy from
+https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/decoders/transformer.py
 """
 
 import torch
 import torch.nn as nn
 
-import numpy as np
 from onmt.decoders.decoder import DecoderBase
 from onmt.modules import MultiHeadedAttention, AverageAttention
 from onmt.modules.position_ffn import PositionwiseFeedForward
@@ -120,9 +121,9 @@ class TransformerDecoderLayer(nn.Module):
             # Case 2: no full_context, 1 align heads -> guided align
             # Case 3: full_context, 1 align heads -> full cte guided align
             attn_align = attns.mean(dim=1)
-        return output, top_attn, attn_align
+        return {"output": output, "attns": attns}
+        # return output, top_attn, attn_align
 
-    #tgt_pad_mask -> dec_mask TODO
     def _forward(self,
                  inputs,
                  memory_bank,
@@ -146,30 +147,30 @@ class TransformerDecoderLayer(nn.Module):
             * output ``(batch_size, T, model_dim)``
             * attns ``(batch_size, head, T, src_len)``
         """
-        # In order to adapt to onnxrt, we should move the following outside as numpy logic
-        # For the reason that onnx dose not support triu!
-        """
-        The original code of ONMT (592a2f62f098c69beeb5487f93d6c74321363630)
-        dec_mask = None
-
-        if step is None:
-            tgt_len = tgt_pad_mask.size(-1)
-            if not future:  # apply future_mask, result mask in (B, T, T)
-                future_mask = torch.ones(
-                    [tgt_len, tgt_len],
-                    device=tgt_pad_mask.device,
-                    dtype=torch.uint8)
-                future_mask = future_mask.triu_(1).view(1, tgt_len, tgt_len)
-                # BoolTensor was introduced in pytorch 1.2
-                try:
-                    future_mask = future_mask.bool()
-                except AttributeError:
-                    pass
-                dec_mask = torch.gt(tgt_pad_mask + future_mask, 0)
-            else:  # only mask padding, result mask in (B, 1, T)
-                dec_mask = tgt_pad_mask
-        """
         dec_mask = tgt_pad_mask
+
+        # TODO(jiaruifang) Because triu_ is not supported in onnxruntime-gpu 1.3.0
+        # We comment the following code.
+        # tgt_pad_mask is a useless parameter now.
+
+        # dec_mask = None
+        # if step is None:
+        #     tgt_len = tgt_pad_mask.size(-1)
+        #     if not future:  # apply future_mask, result mask in (B, T, T)
+        #         future_mask = torch.ones(
+        #             [tgt_len, tgt_len],
+        #             device=tgt_pad_mask.device,
+        #             dtype=torch.uint8)
+        #         future_mask = future_mask.triu_(1).view(1, tgt_len, tgt_len)
+        #         # BoolTensor was introduced in pytorch 1.2
+        #         try:
+        #             future_mask = future_mask.bool()
+        #         except AttributeError:
+        #             pass
+        #         dec_mask = torch.gt(tgt_pad_mask + future_mask, 0)
+        #     else:  # only mask padding, result mask in (B, 1, T)
+        #         dec_mask = tgt_pad_mask
+
         input_norm = self.layer_norm_1(inputs)
 
         if isinstance(self.self_attn, MultiHeadedAttention):
