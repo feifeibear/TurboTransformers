@@ -36,7 +36,7 @@ namespace allocator {
 class NaiveAllocator : public BaseAllocator {
  public:
 #ifdef TT_WITH_CUDA
-  NaiveAllocator() : cub_allocator(unsigned(8)) {}
+  // NaiveAllocator() : cub_allocator(unsigned(8)) {}
 #else
 #endif
   void* allocate(size_t size, DLDeviceType dev,
