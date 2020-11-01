@@ -44,6 +44,8 @@ from transformers.file_utils import add_code_sample_docstrings, add_start_docstr
 from transformers.modeling_utils import PreTrainedModel, find_pruneable_heads_and_indices, prune_linear_layer
 
 import time
+import contextlib
+
 softmax_time = 0.
 layernorm_time = 0.
 
@@ -58,6 +60,32 @@ def print_timer():
     global softmax_time, layernorm_time
     #print(f"softmax time {softmax_time} layernorm time {layernorm_time}")
     return softmax_time, layernorm_time
+
+
+@contextlib.contextmanager
+def timer_ctx(name: str):
+    use_gpu = torch.cuda.is_available()
+    if use_gpu:
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        start.record()
+    else:
+        start = time.time()
+    yield
+    if use_gpu:
+        end.record()
+        torch.cuda.synchronize()
+        elapse = start.elapsed_time(end) / 1e3
+    else:
+        elapse = time.time() - start
+    if name == "softmax":
+        global softmax_time
+        softmax_time += elapse
+    elif name == 'layernorm':
+        global layernorm_time
+        layernorm_time += elapse
+    else:
+        raise "error"
 
 
 logger = logging.getLogger(__name__)
@@ -227,16 +255,8 @@ class BertEmbeddings(nn.Module):
         embeddings = inputs_embeds + position_embeddings + token_type_embeddings
         global layernorm_time
 
-        start = torch.cuda.Event(enable_timing=True)
-        end = torch.cuda.Event(enable_timing=True)
-        start.record()
-
-        embeddings = self.LayerNorm(embeddings)
-
-        end.record()
-        torch.cuda.synchronize()
-        elapse = start.elapsed_time(end) / 1e3
-        layernorm_time += elapse
+        with timer_ctx("layernorm") as perf:
+            embeddings = self.LayerNorm(embeddings)
 
         embeddings = self.dropout(embeddings)
         return embeddings
@@ -298,24 +318,16 @@ class BertSelfAttention(nn.Module):
         # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = torch.matmul(query_layer,
                                         key_layer.transpose(-1, -2))
-        global softmax_time
-        start = torch.cuda.Event(enable_timing=True)
-        end = torch.cuda.Event(enable_timing=True)
-        start.record()
 
-        attention_scores = attention_scores / math.sqrt(
-            self.attention_head_size)
-        if attention_mask is not None:
-            # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-            attention_scores = attention_scores + attention_mask
+        with timer_ctx("softmax") as ctx:
+            attention_scores = attention_scores / math.sqrt(
+                self.attention_head_size)
+            if attention_mask is not None:
+                # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
+                attention_scores = attention_scores + attention_mask
 
-        # Normalize the attention scores to probabilities.
-        attention_probs = nn.Softmax(dim=-1)(attention_scores)
-
-        end.record()
-        torch.cuda.synchronize()
-        elapse = start.elapsed_time(end) / 1e3
-        softmax_time += elapse
+            # Normalize the attention scores to probabilities.
+            attention_probs = nn.Softmax(dim=-1)(attention_scores)
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
@@ -350,16 +362,8 @@ class BertSelfOutput(nn.Module):
         hidden_states = self.dropout(hidden_states)
         global layernorm_time
 
-        start = torch.cuda.Event(enable_timing=True)
-        end = torch.cuda.Event(enable_timing=True)
-        start.record()
-
-        hidden_states = self.LayerNorm(hidden_states + input_tensor)
-
-        end.record()
-        torch.cuda.synchronize()
-        elapse = start.elapsed_time(end) / 1e3
-        layernorm_time += elapse
+        with timer_ctx("layernorm") as ctx:
+            hidden_states = self.LayerNorm(hidden_states + input_tensor)
 
         return hidden_states
 
@@ -439,13 +443,9 @@ class BertOutput(nn.Module):
     def forward(self, hidden_states, input_tensor):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.dropout(hidden_states)
-        global layernorm_time
-        hidden_states = self.LayerNorm(hidden_states + input_tensor)
 
-        end.record()
-        torch.cuda.synchronize()
-        elapse = start.elapsed_time(end) / 1e3
-        layernorm_time += elapse
+        with timer_ctx("layernorm") as ctx:
+            hidden_states = self.LayerNorm(hidden_states + input_tensor)
 
         return hidden_states
 
