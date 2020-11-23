@@ -44,7 +44,8 @@ def _to_param_dict_naive(torch_module: torch.nn.Module):
     return {k: v for k, v in torch_module.named_parameters()}
 
 
-# The implement of AlbertEmbeddings is totally equivalent with AlbertEmbedding, So nothing new to do
+# The implement of AlbertEmbeddings is totally equivalent with bertEmbedding,
+# So nothing new to do
 class AlbertEmbeddings(cxx.BERTEmbedding):
     def __call__(self,
                  input_ids: AnyTensor,
@@ -149,7 +150,8 @@ class AlbertLayer(cxx.AlbertLayer):
         super(AlbertLayer, self).__call__(attention_output[0], hidden_output,
                                           hidden_states)
 
-        #TODO(jiaruifang) return_type conversion is conducted on the 1st return value, the other return values are TORCH tensors.
+        # TODO(jiaruifang) return_type conversion is conducted on the 1st return value,
+        # the other return values are TORCH tensors.
         return (convert_returns_as_type(hidden_states, return_type),
                 convert_returns_as_type(attention_output[1], ReturnType.TORCH)
                 ) if output_attentions else (convert_returns_as_type(
