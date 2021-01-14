@@ -29,7 +29,7 @@ static void *cuda_alloc(size_t sz) {
 }
 
 static void cuda_free(void *data) {
-  turbo_hook::service::uFree(123, data);
+  turbo_hook::service::uFree(123, reinterpret_cast<uintptr_t>(data));
   // TT_ENFORCE_CUDA_SUCCESS(cudaFree(data));
 }
 #endif
