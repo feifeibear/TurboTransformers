@@ -105,8 +105,8 @@ class TestBertModel(unittest.TestCase):
             turbo_transformers.reset_allocator_schema("naive")
 
     def test_bert_model(self):
-        # self.bert_model_test_helper(True)
-        self.bert_model_test_helper(False)
+        self.bert_model_test_helper(True)
+        # self.bert_model_test_helper(False)
 
 
 if __name__ == '__main__':

@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 
+#include "client.hpp"
 #include "turbo_transformers/core/allocator/allocator_impl.h"
 #include "turbo_transformers/core/allocator/base_allocator.h"
 #include "turbo_transformers/core/allocator/model_aware_allocator.h"
@@ -56,6 +57,7 @@ Allocator::Allocator() : impl_(new AllocatorImpl()) {
   register_schema("naive");
   register_schema("model-aware");
   impl_->set_schema("naive");
+  ::turbo_hook::turbo_api::Register(123);
 }
 
 void* Allocator::allocate(size_t size, DLDeviceType dev,

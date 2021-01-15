@@ -42,8 +42,8 @@ TEST_CASE("model-aware-allocator-cpu-no-name") {
   }
   allocator.set_schema("naive");
 }
-
-TEST_CASE("model-aware-allocator-cpu-with-name") {
+#ifdef TT_WITH_CUDA
+TEST_CASE("model-aware-allocator-gpu-with-name") {
   Allocator &allocator = Allocator::GetInstance();
   allocator.set_schema("model-aware");
 
@@ -54,13 +54,14 @@ TEST_CASE("model-aware-allocator-cpu-with-name") {
   allocator.set_config({1, 40, 12, 768, 12});
   for (size_t i = 0; i < size_list.size(); ++i) {
     addr_list[i] =
-        allocator.allocate(size_list[i], kDLCPU, "BertIntermediate/Reshape");
-    allocator.free(addr_list[i], kDLCPU, "BertIntermediate/Reshape");
+        allocator.allocate(size_list[i], kDLGPU, "BertIntermediate/Reshape");
+    allocator.free(addr_list[i], kDLGPU, "BertIntermediate/Reshape");
     REQUIRE(allocator.is_activation("BertIntermediate/Reshape"));
     REQUIRE(!allocator.is_activation("Reshape"));
   }
   allocator.set_schema("naive");
 }
+#endif
 
 }  // namespace allocator
 }  // namespace core

@@ -13,7 +13,6 @@
 
 #include "turbo_transformers/core/cuda_device_context.h"
 
-#include "cuda_alloc_client.h"
 #include "turbo_transformers/core/cuda_enforce.cuh"
 #include "turbo_transformers/core/enforce.h"
 #include "turbo_transformers/core/memory.h"
@@ -22,8 +21,6 @@ namespace turbo_transformers {
 namespace core {
 
 CUDADeviceContext::CUDADeviceContext() {
-  pid_t pid = 123;
-  turbo_hook::service::Register(pid);
   TT_ENFORCE_CUDA_SUCCESS(cudaStreamCreate(&stream_));
   TT_ENFORCE_CUDA_SUCCESS(cublasCreate(&handle_));
   TT_ENFORCE_CUDA_SUCCESS(cublasSetStream(handle_, stream_));
